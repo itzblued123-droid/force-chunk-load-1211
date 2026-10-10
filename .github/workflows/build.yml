@@ -12,13 +12,32 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Check project files
+      - name: Extract project ZIP
         run: |
-          echo "Checking repository files..."
-          ls -la
-          find . -maxdepth 3 -type f | head -100
+          mkdir -p project
+          unzip -o force-chunk-load-1.21.1-port-workspace.zip -d project
+          find project -maxdepth 4 -type f | head -100
+
+      - name: Build mod
+        run: |
+          cd project
+          GRADLEW=$(find . -name gradlew -type f | head -1)
+          if [ -z "$GRADLEW" ]; then
+            echo "ERROR: Gradle Wrapper tidak ditemukan."
+            exit 1
+          fi
+          chmod +x "$GRADLEW"
+          cd "$(dirname "$GRADLEW")"
+          ./gradlew build
+
+      - name: Upload JAR files
+        uses: actions/upload-artifact@v4
+        with:
+          name: FCL-build
+          path: project/**/*.jar
+          if-no-files-found: error
