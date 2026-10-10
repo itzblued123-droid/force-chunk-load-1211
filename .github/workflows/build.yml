@@ -17,27 +17,47 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Extract project ZIP
+      - name: Find and extract project ZIP
         run: |
-          mkdir -p project
-          unzip -o force-chunk-load-1.21.1-port-workspace.zip -d project
-          find project -maxdepth 4 -type f | head -100
+          ZIP_FILE="force-chunk-load-main.zip"
 
-      - name: Build mod
-        run: |
-          cd project
-          GRADLEW=$(find . -name gradlew -type f | head -1)
-          if [ -z "$GRADLEW" ]; then
-            echo "ERROR: Gradle Wrapper tidak ditemukan."
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP proyek tidak ditemukan!"
+            echo "Daftar file di repository:"
+            ls -lah
             exit 1
           fi
-          chmod +x "$GRADLEW"
-          cd "$(dirname "$GRADLEW")"
-          ./gradlew build
 
-      - name: Upload JAR files
+          mkdir -p project
+          unzip -o "$ZIP_FILE" -d project
+
+          echo "Isi proyek setelah diekstrak:"
+          find project -maxdepth 4 -type f | head -100
+
+      - name: Locate Gradle Wrapper
+        run: |
+          GRADLEW=$(find project -type f -name gradlew | head -1)
+
+          if [ -z "$GRADLEW" ]; then
+            echo "ERROR: gradlew tidak ditemukan di dalam ZIP!"
+            echo "Periksa apakah ZIP berisi proyek Minecraft lengkap."
+            exit 1
+          fi
+
+          echo "Gradle Wrapper ditemukan: $GRADLEW"
+          echo "GRADLEW_PATH=$GRADLEW" >> "$GITHUB_ENV"
+          echo "PROJECT_DIR=$(dirname "$GRADLEW")" >> "$GITHUB_ENV"
+
+      - name: Build Minecraft mod
+        run: |
+          cd "$PROJECT_DIR"
+          chmod +x ./gradlew
+          ./gradlew build --stacktrace
+
+      - name: Upload build artifacts
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: FCL-build
-          path: project/**/*.jar
+          path: project/**/build/libs/*.jar
           if-no-files-found: error
